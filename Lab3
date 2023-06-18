@@ -1,0 +1,62 @@
+USE [Облік кадрів]
+GO
+
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER TABLE Departments
+ADD FundSalary float NULL
+GO
+
+--Процедура обрахування фонду зарплати за вказаний місяць вказаному відділу--
+CREATE PROCEDURE SalaryFundDepartment
+    @DepartmentID bigint,
+    @Month int,
+    @Year int
+AS
+BEGIN
+    DECLARE @ALLSalary float
+	SELECT @ALLSalary = SUM(p.Salary * (1 + 0.012 * (@Year - YEAR(j.DateOfStartOfWork)))) 
+    FROM JobHistory j
+    INNER JOIN Positions p ON j.PositionID = p.PositionID
+    WHERE j.DepartmentID = @DepartmentID
+      AND YEAR(j.DateOfStartOfWork) <= @Year
+      AND (j.MarchingOrders IS NULL OR YEAR(j.MarchingOrders) > @Year)
+	  
+    UPDATE Departments
+    SET FundSalary = @ALLSalary
+    WHERE DepartmentID = @DepartmentID
+END
+GO
+
+--Процедура, яка б викликала першу процедуру для всіх відділів--
+CREATE PROCEDURE SalaryFundAllDepartments
+    @Month int,
+    @Year int
+AS
+BEGIN
+    DECLARE @DepartmentID bigint
+
+    DECLARE DepartmentCursor CURSOR FOR
+        SELECT DepartmentID FROM Departments
+
+    OPEN DepartmentCursor
+    FETCH NEXT FROM DepartmentCursor INTO @DepartmentID
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        EXEC SalaryFundDepartment @DepartmentID, @Month, @Year
+
+        FETCH NEXT FROM DepartmentCursor INTO @DepartmentID
+    END
+
+    CLOSE DepartmentCursor
+    DEALLOCATE DepartmentCursor
+END
+GO
+
+EXEC SalaryFundAllDepartments @Month = 5, @Year = 202
