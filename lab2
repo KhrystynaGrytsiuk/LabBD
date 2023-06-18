@@ -1,0 +1,173 @@
+USE [Облік кадрів]
+GO
+
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+--SELECT DepartmentID, COUNT(*) AS TotalEmployees
+--FROM JobHistory
+--WHERE DepartmentID = 1 AND (PositionID = 1 OR PositionID = 5);
+
+
+--SELECT e.EmployeeID, e.Surname, e.Name, e.Patronymic
+--FROM Employees e
+--JOIN Positions d ON e.PositionID = d.PositionID
+--WHERE d.PositionID = 1 OR d.PositionID = 5
+--ALTER SEQUENCE Seq_JobHistory RESTART WITH 1;
+
+--15--
+DELETE FROM JobHistory;
+ALTER SEQUENCE Seq_JobHistory RESTART WITH 1;
+
+
+--1--
+SELECT *
+FROM Employees 
+WHERE (PositionID = 1 OR PositionID = 5) AND PlaceOfBirth = N'м.Київ'
+ORDER BY Surname ASC;
+
+--2--список працівників з вказанням періодів використаних відпусток та підсумком днів проведених в відпустках для кожного працівника
+SELECT
+  e.EmployeeID,
+  e.Surname,
+  e.Name,
+  e.Patronymic,
+  v.TotalVacationDays
+FROM Employees e
+LEFT JOIN (
+  SELECT
+    EmployeeID,
+    SUM(Days) AS TotalVacationDays
+  FROM Vacations
+  GROUP BY EmployeeID
+) v ON e.EmployeeID = v.EmployeeID;
+
+
+--Список працюючих відділу
+SELECT e.Surname, e.Name, e.Patronymic
+FROM Employees e
+INNER JOIN JobHistory j ON e.EmployeeID = j.EmployeeID
+WHERE j.DepartmentID = 1
+ORDER BY e.Surname;
+
+--3--WITH LIKE 5
+SELECT e.Surname, e.Name, e.Patronymic
+FROM Employees e
+INNER JOIN JobHistory j ON e.EmployeeID = j.EmployeeID
+WHERE j.DepartmentID = 3
+AND (e.Surname LIKE N'А%' OR e.Surname LIKE N'М%')
+ORDER BY e.Surname;
+
+
+--4--Зовнішнє з`єднання для довідки
+SELECT e.EmployeeID, e.Surname, e.Name, e.Patronymic, p.NamePosition, p.Salary
+FROM Employees AS e
+LEFT JOIN Positions AS p ON e.PositionID = p.PositionID;
+
+--5--WITH BETWEEN AND ALL
+SELECT *
+FROM Employees
+WHERE CONVERT(date, DateOfBirth, 104) BETWEEN '1980-01-01' AND '1986-12-31';
+
+--5--WITH In
+SELECT * FROM Positions
+WHERE PositionID IN (1, 3, 5);
+
+--5,7--WITH Exists 
+SELECT e.Surname, e.Name, e.Patronymic, p.NamePosition
+FROM Employees e
+INNER JOIN Positions p ON e.PositionID = p.PositionID
+WHERE EXISTS (
+    SELECT 1
+    FROM JobHistory j
+    WHERE e.EmployeeID = j.EmployeeID 
+    AND j.MarchingOrders IS NULL
+);
+
+
+--5--WITH Any де працівник має зарплату більшу за будь яку іншу 
+SELECT *
+FROM Employees
+WHERE PositionID = ANY (SELECT PositionID FROM Positions WHERE Salary > ANY (SELECT Salary FROM Positions))
+
+--6--
+SELECT
+    d.Name AS DepartmentName,
+    CONCAT(e.Surname, ' ', e.Name) AS Manager,
+    COUNT(*) AS NumberOfEmployees
+FROM Departments d
+    INNER JOIN Employees e ON d.ManagerID = e.EmployeeID
+    INNER JOIN JobHistory j ON d.DepartmentID = j.DepartmentID
+WHERE j.MarchingOrders IS NULL
+GROUP BY
+    d.Name,
+    e.Surname,
+    e.Name;
+
+
+--8-- Керівник з підрозділу маркетингу
+SELECT e.Surname, e.Name, d.Name AS Department
+FROM (
+    SELECT EmployeeID, Surname, Name
+    FROM Employees
+    WHERE PositionID IN (
+        SELECT PositionID
+        FROM Positions
+        WHERE NamePosition = N'Керівник підрозділу маркетингу'
+    )
+) AS e
+JOIN Departments AS d ON e.EmployeeID = d.ManagerID;
+
+
+--9--
+SELECT
+    d.Name AS DepartmentName,
+    e.Surname + ' ' + e.Name AS DepartmentManager
+FROM Departments d
+    LEFT JOIN Employees e ON d.ManagerID = e.EmployeeID
+ORDER BY
+    d.Name ASC;
+
+
+--10--Таблиця у якій показано кількість працівників за посадами
+SELECT *
+FROM (
+  SELECT D.Name AS Department, P.NamePosition AS Position, COUNT(*) AS EmployeeCount
+  FROM JobHistory J
+  JOIN Departments D ON J.DepartmentID = D.DepartmentID
+  JOIN Positions P ON J.PositionID = P.PositionID
+  GROUP BY D.Name, P.NamePosition
+) AS SourceTable
+PIVOT (
+  SUM(EmployeeCount)
+  FOR Position IN ([Керівник підрозділу маркетингу], [Керівник підрозділу фінансів], [Керівник технічного підрозділу], [Керівник юридичного підрозділу], [Маркетолог], [Фінансист], [Інженер з підготовки виробництва], [Юрисконсульт])
+) AS PivotTable;
+
+
+--11--
+UPDATE dbo.Employees
+SET HomeAddress = N'м.Київ, вул.Нова'
+WHERE EmployeeID = 1;
+
+--12--
+UPDATE Employees
+SET Employees.HomeAddress = N'м.Київ, вул.Нова, буд.12'
+FROM Employees
+INNER JOIN JobHistory ON Employees.EmployeeID = JobHistory.EmployeeID
+INNER JOIN Departments ON JobHistory.DepartmentID = Departments.DepartmentID
+WHERE Departments.Abbreviation = N'ПМ';
+
+--14--
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+SELECT P.PositionID, E.EmployeeID, D.DepartmentID, '2023-05-29', NULL
+FROM Positions AS P
+JOIN Employees AS E ON P.PositionID = E.PositionID
+JOIN Departments AS D ON E.EmployeeID = D.ManagerID
+WHERE P.NamePosition = N'Керівник підрозділу маркетингу';
+
+DELETE FROM JobHistory WHERE NoteID = 9;
