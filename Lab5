@@ -1,0 +1,127 @@
+USE [Облік кадрів]
+GO
+
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+--Створення користувачів та надання привілеїв--
+
+--Створення адміністрастратора, який повинен виконувати такі завдання: Забезпечення доступу до Бази Даних;
+--Створення, зміна та видалення таблиць;
+--Управління користувачами і їх доступом до БД;
+CREATE LOGIN admin WITH PASSWORD = 'password';
+CREATE USER admin FOR LOGIN admin;
+
+
+
+--Створення кадрового менеджера, який повинен виконувати такі задачі: Додавання, редагування та видалення записів про посади; 
+--Додавання, редагування та видалення записів про працівників; 
+--Додавання, редагування та видалення записів про відділи; 
+--Відстеження історії роботи працівників;
+--Організація відпусток працівників;
+CREATE LOGIN hr_manager WITH PASSWORD = 'password';
+CREATE USER hr_manager FOR LOGIN hr_manager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Positions TO hr_manager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.PassportData TO hr_manager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Employees TO hr_manager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Departments TO hr_manager;
+GRANT SELECT, INSERT, UPDATE ON dbo.Vacations TO hr_manager;
+GRANT SELECT ON dbo.JobHistory TO hr_manager;
+
+
+--Створення керівника відділу, який повинен виконувати такі завдання: Отримання інформації про працівників свого відділу;
+--Організація роботи відділу і призначення завдань співробітникам;
+--Відстеження відпусток;
+CREATE LOGIN department_manager WITH PASSWORD = 'password';
+CREATE USER department_manager FOR LOGIN department_manager;
+GRANT SELECT ON Employees TO department_manager;
+GRANT SELECT ON Departments TO department_manager;
+GRANT SELECT ON Positions TO department_manager;
+GRANT SELECT ON Vacations TO department_manager;
+GRANT SELECT ON JobHistory TO department_manager;
+
+--Створення фінансового аналітика--
+--Отримання інформації про заробітну плату працівників;
+--Аналіз фінансової ситуації підприємства;
+CREATE LOGIN financial_analyst WITH PASSWORD = 'password';
+CREATE USER financial_analyst FOR LOGIN financial_analyst;
+GRANT SELECT ON Employees TO financial_analyst;
+GRANT SELECT ON Positions TO financial_analyst;
+GRANT SELECT ON JobHistory TO financial_analyst;
+
+
+--Створення ролей--
+
+--Завдання кадрового менеджера включають редагування, створення та видалення посад, працівників та відділів. Окрім операції читання, потрібно також редагувати історію посад.
+--Також потрібно організовувати відпустки.
+CREATE ROLE HRManager;
+--Завдання керівника відділу включають читання майже усіх таблиць,  для отримання інформації про працівників, організації роботи тощо.
+CREATE ROLE DepartmentManager;
+--Завдання фінансового аналітика включають читання таблиць для аналізу інформації про заробітню плату.
+CREATE ROLE FinancialAnalyst;
+
+
+--Додавання привілеїв ролям--
+--Додаємо роль на рівні серверу для адміністратора--
+ALTER SERVER ROLE sysadmin ADD MEMBER admin;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON Positions TO HRManager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON PassportData TO HRManager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON Employees TO HRManager;
+GRANT SELECT, INSERT, UPDATE, DELETE ON Departments TO HRManager;
+GRANT SELECT, INSERT, UPDATE ON Vacations TO HRManager;
+GRANT SELECT, INSERT, UPDATE ON JobHistory TO HRManager;
+
+GRANT SELECT ON Employees TO DepartmentManager;
+GRANT SELECT ON Departments TO DepartmentManager;
+GRANT SELECT ON Positions TO DepartmentManager;
+GRANT SELECT ON Vacations TO DepartmentManager;
+GRANT SELECT ON JobHistory TO DepartmentManager;
+GRANT SELECT ON PassportData TO DepartmentManager;
+
+
+GRANT SELECT ON Employees TO FinancialAnalyst;
+GRANT SELECT ON Positions TO FinancialAnalyst;
+GRANT SELECT ON JobHistory TO FinancialAnalyst;
+
+
+--Призначення користувачам ролі--
+ALTER ROLE HRManager ADD MEMBER hr_manager;
+ALTER ROLE DepartmentManager ADD MEMBER department_manager;
+ALTER ROLE FinancialAnalyst ADD MEMBER financial_analyst;
+
+--Відкликати у користувача привілей, що також призначений через роль--
+REVOKE SELECT, INSERT, UPDATE, DELETE ON Positions TO hr_manager;
+
+--Відклткати роль у користувача--
+EXEC sp_droprolemember 'DepartmentManager', 'department_manager';
+
+
+--Видалення ролі--
+DROP ROLE DepartmentManager;
+DROP ROLE HRManager;
+DROP ROLE FinancialAnalyst;
+
+--Видалення користувача--
+DROP USER  department_manager;
+DROP USER hr_manager;
+DROP USER financial_analyst;
+
+
+EXEC sp_helprotect @username = 'hr_manager';
+GO
+EXEC sp_helprotect @username = 'department_manager';
+GO
+EXEC sp_helprotect @username = 'financial_analyst';
+GO
+
+EXEC sp_helpuser 'hr_manager';
+GO
+EXEC sp_helpuser 'department_manager';
+GO
+EXEC sp_helpuser 'financial_analyst';
+GO
