@@ -1,0 +1,363 @@
+USE [Облік кадрів]
+GO
+
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Positions](
+  [PositionID] [bigint] NOT NULL PRIMARY KEY,
+  [NamePosition] [nvarchar](100) NOT NULL,
+  [Salary] [bigint] NOT NULL
+  ) ON [PRIMARY]
+GO
+
+CREATE SEQUENCE Seq_Positions
+    START WITH 1
+    INCREMENT BY 1
+GO
+
+CREATE TRIGGER tr_Positions_Insert
+ON Positions
+INSTEAD OF INSERT
+AS
+BEGIN
+   DECLARE @PositionID INT;
+   SET @PositionID = NEXT VALUE FOR Seq_Positions;
+   INSERT INTO Positions (PositionID, NamePosition, Salary)
+   SELECT @PositionID, NamePosition, Salary
+   FROM inserted;
+END
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Керівник підрозділу маркетингу', 20000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Керівник підрозділу фінансів', 20000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Керівник технічного підрозділу', 20000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Керівник юридичного підрозділу', 20000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Маркетолог', 15000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Фінансист', 15000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Інженер з підготовки виробництва', 15000)
+GO
+
+INSERT INTO Positions(NamePosition, Salary)
+VALUES (N'Юрисконсульт', 15000)
+GO
+
+
+CREATE TABLE [dbo].[Employees](
+  [EmployeeID] [bigint] NOT NULL,
+  [PositionID] [bigint] NOT NULL,
+  [Surname] [nvarchar](50) NOT NULL,
+  [Name] [nvarchar](50) NOT NULL,
+  [Patronymic] [nvarchar](50) NOT NULL,
+  [DateOfBirth] [varchar](50) NOT NULL,
+  [PlaceOfBirth] [nvarchar](50) NOT NULL,
+  [HomeAddress] [nvarchar](50) NOT NULL,
+  PRIMARY KEY (EmployeeID),
+  FOREIGN KEY (PositionID) REFERENCES Positions(PositionID)
+  ) ON [PRIMARY]
+GO
+
+CREATE SEQUENCE Seq_Employees
+    START WITH 1
+    INCREMENT BY 1
+GO
+
+CREATE TRIGGER tr_Employees_Insert
+ON Employees
+INSTEAD OF INSERT
+AS
+BEGIN
+   DECLARE @EmployeeID INT;
+   SET @EmployeeID = NEXT VALUE FOR Seq_Employees;
+   INSERT INTO Employees (EmployeeID, PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+   SELECT @EmployeeID, PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress
+   FROM inserted;
+END
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (1, N'Аврамишин', N'Олександр', N'Володимирович', '12.05.1985', N'м.Київ', N'м.Київ, вул.Ольгинська')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (2, N'Гринюк', N'Андрій', N'Володимирович', '11.10.1989', N'м.Київ', N'м.Київ, вул.Мазепи Івана')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (3, N'Андріюк', N'Іван', N'Іванович', '10.01.1990', N'м.Київ', N'м.Київ, вул.Банкова')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (4, N'Андрійчук', N'Ярослав', N'Анатолійович', '01.02.1986', N'м.Київ', N'м.Київ, вул.Липська')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (5, N'Баланчук', N'Олена', N'Ярославівна', '10.11.1991', N'м.Київ', N'м.Київ, вул.Інститутська')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (6, N'Баженова', N'Анастасія', N'Валеріївна', '20.02.1986', N'м.Київ', N'м.Київ, вул.Михайла Грушевського')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (7, N'Мельник', N'Ярослава', N'Михайлівна', '10.12.1991', N'м.Київ', N'м.Київ, вул.Макаренка')
+GO
+
+INSERT INTO Employees(PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress)
+VALUES (8, N'Корінь', N'Олег', N'Володимирович', '20.10.1986', N'м.Київ', N'м.Київ, вул.Миру')
+GO
+
+
+CREATE TABLE [dbo].[Departments](
+  [DepartmentID] [bigint] NOT NULL PRIMARY KEY,
+  [ManagerID] [bigint] NOT NULL,
+  [Name] [nvarchar](100) NOT NULL,
+  [Abbreviation] [nvarchar](50) NOT NULL,
+  FOREIGN KEY (ManagerID) REFERENCES Employees(EmployeeID)
+) ON [PRIMARY]
+GO
+
+CREATE SEQUENCE Seq_Departments
+    START WITH 1
+    INCREMENT BY 1
+GO
+
+CREATE TRIGGER tr_Departments_Insert
+ON Departments
+INSTEAD OF INSERT
+AS
+BEGIN
+   DECLARE @DepartmentID INT;
+   SET @DepartmentID = NEXT VALUE FOR Seq_Departments;
+   INSERT INTO Departments(DepartmentID, ManagerID, Name, Abbreviation)
+   SELECT @DepartmentID, ManagerID, Name, Abbreviation
+   FROM inserted;
+END
+GO
+
+INSERT INTO Departments(ManagerID, Name, Abbreviation)
+VALUES (1, N'Підрозділ маркетингу', N'ПМ')
+GO
+
+INSERT INTO Departments(ManagerID, Name, Abbreviation)
+VALUES (2, N'Фінансовий підрозділ', N'ФП')
+GO
+
+INSERT INTO Departments(ManagerID, Name, Abbreviation)
+VALUES (3, N'Технічний підрозділ', N'ТП')
+GO
+
+INSERT INTO Departments(ManagerID, Name, Abbreviation)
+VALUES (4, N'Юридичний підрозділ', N'ЮП')
+GO
+
+CREATE TABLE [dbo].[Vacations](
+  [VacationID] [bigint] NOT NULL PRIMARY KEY,
+  [EmployeeID] [bigint] NOT NULL,
+  [Start_Vacation] [date] NULL,
+  [End_Vacation] [date] NULL,
+  [Days] [bigint] NULL,
+  FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID)
+) ON [PRIMARY]
+GO
+
+CREATE SEQUENCE Seq_Vacations
+    START WITH 1
+    INCREMENT BY 1
+GO
+
+CREATE TRIGGER tr_Vacations_Insert
+ON Vacations
+INSTEAD OF INSERT
+AS
+BEGIN
+   DECLARE @VacationID INT;
+   SET @VacationID = NEXT VALUE FOR Seq_Vacations;
+   INSERT INTO Vacations(VacationID, EmployeeID, Start_Vacation, End_Vacation, Days)
+   SELECT @VacationID, EmployeeID, Start_Vacation, End_Vacation, Days
+   FROM inserted;
+END
+GO
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (1,'2023-04-13', '2023-05-01', 20)
+GO
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (2,'2023-03-10', '2023-04-01', 23)
+GO
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (3,'2023-05-03', '2023-05-25', 22)
+GO
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (4,'2022-01-03', '2022-01-25', 22)
+GO
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (4,'2023-02-03', '2022-02-25', 22)
+GO
+
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (5,'2023-06-01', '2023-06-23', 23)
+GO
+---
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (1,'2023-06-01', '2023-06-23', 23)
+GO
+---
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (6,NULL, NULL, Null)
+GO
+
+INSERT INTO Vacations(EmployeeID, Start_Vacation, End_Vacation, Days)
+VALUES (7, '2023-06-01', '2023-06-23', 23)
+GO
+
+DELETE Vacations
+WHERE EmployeeID = 1 AND Start_Vacation =  '2023-06-01';
+
+UPDATE dbo.Vacations
+SET EmployeeID= 1, Start_Vacation = '2023-06-01', End_Vacation = '2023-06-23'
+WHERE VacationID = 7;
+
+
+
+
+CREATE TABLE [dbo].[PassportData](
+    [PassportDataID] [bigint] NOT NULL PRIMARY KEY,
+    [EmployeeID] [bigint] NOT NULL,
+  [PassportNumber] [varchar](15) NOT NULL,
+  [Citizenship] [nvarchar](50) NOT NULL,
+  [RegistrationAddress] [nvarchar](100) NOT NULL,
+  [IDCode] [varchar](30) NOT NULL,
+   FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID)
+) ON [PRIMARY]
+GO
+
+CREATE SEQUENCE Seq_PassportData
+    START WITH 1
+    INCREMENT BY 1
+GO
+
+CREATE TRIGGER tr_PassportData_Insert
+ON PassportData
+INSTEAD OF INSERT
+AS
+BEGIN
+   DECLARE @PassportDataID INT;
+   SET @PassportDataID = NEXT VALUE FOR Seq_PassportData;
+   INSERT INTO PassportData(PassportDataID, EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode)
+   SELECT @PassportDataID, EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode
+   FROM inserted;
+END
+GO
+
+INSERT INTO PassportData(EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode)
+VALUES (1, '19850512-01555', N'Україна', N'м.Київ, вул.Ольгинська','1111187654')
+GO
+
+INSERT INTO PassportData(EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode)
+VALUES (2, '19891011-00026', N'Україна', N'м.Київ, вул.Мазепи Івана', '1111112345')
+GO
+
+INSERT INTO PassportData(EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode)
+VALUES (3, '19900110-01222', N'Україна', N'м.Київ, вул.Банкова', '1123456743')
+GO
+
+INSERT INTO PassportData(EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode)
+VALUES (4, '19860201-01333', N'Україна', N'м.Київ, вул.Липська', '1334563245')
+GO
+
+INSERT INTO PassportData(EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode)
+VALUES (5, '19911110-01455', N'Україна', N'м.Київ, вул.Інститутська', '1112346765')
+GO
+
+CREATE TABLE [dbo].[JobHistory](
+  [NoteID] [bigint] NOT NULL PRIMARY KEY,
+  [PositionID] [bigint] NOT NULL,
+  [EmployeeID] [bigint] NOT NULL,
+  [DepartmentID] [bigint] NOT NULL,
+  [DateOfStartOfWork] [date] NOT NULL,
+  [MarchingOrders] [date] NULL,
+  FOREIGN KEY (PositionID) REFERENCES  Positions(PositionID),
+  FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID),
+  FOREIGN KEY (DepartmentID) REFERENCES Departments(DepartmentID)
+  ) ON [PRIMARY]
+GO
+
+
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (1, 1, 1, '2022-11-10', NULL)
+GO
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (2, 2, 2, '2021-12-10', NULL)
+GO
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (5, 5, 1, '2020-12-10', NULL)
+GO
+
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (3, 3, 3, '2023-11-10', NULL)
+GO
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (4, 4, 4, '2021-05-10', NULL)
+GO
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (6, 6, 2, '2021-06-12', NULL)
+GO
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (7, 7, 3, '2021-12-10', NULL)
+GO
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (8, 8, 4, '2021-12-10', NULL)
+GO
+
+INSERT INTO JobHistory(PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders)
+VALUES (5, 9, 1, '2021-12-10', NULL)
+GO
+
+DELETE JobHistory
+WHERE EmployeeID = 9 ;
+
+
+UPDATE dbo.JobHistory
+SET PositionID = 5, EmployeeID = 9, DepartmentID = 1
+WHERE NoteID = 8;
+
+UPDATE dbo.JobHistory
+SET PositionID = 5, EmployeeID = 9, DepartmentID = 3
+WHERE NoteID = 8;
