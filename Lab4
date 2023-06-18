@@ -1,0 +1,615 @@
+USE [Облік кадрів]
+GO
+
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER TABLE JobHistory
+DROP COLUMN UserCreated, DateCreated, UserLastChanged, DateLastChanged;
+
+
+ALTER TABLE Positions ADD UCR NVARCHAR(50), DCR DATETIME, ULC NVARCHAR(50), DLC DATETIME;
+ALTER TABLE Employees ADD UCR NVARCHAR(50), DCR DATETIME, ULC NVARCHAR(50), DLC DATETIME;
+ALTER TABLE Departments ADD UCR NVARCHAR(50), DCR DATETIME, ULC NVARCHAR(50), DLC DATETIME;
+ALTER TABLE Vacations ADD UCR NVARCHAR(50), DCR DATETIME, ULC NVARCHAR(50), DLC DATETIME;
+ALTER TABLE PassportData ADD UCR NVARCHAR(50), DCR DATETIME, ULC NVARCHAR(50), DLC DATETIME;
+ALTER TABLE JobHistory ADD UCR NVARCHAR(50), DCR DATETIME, ULC NVARCHAR(50), DLC DATETIME;
+ALTER TABLE JobHistory ADD UserCreated  NVARCHAR(50), DateCreated DATETIME, UserLastChanged NVARCHAR(50), DateLastChanged DATETIME;
+
+-- Створення послідовності для JobHistory--
+CREATE SEQUENCE Seq_JobHistory
+    START WITH 1
+    INCREMENT BY 1;
+GO
+
+-- Тригер для вставки даних в JobHistory--
+CREATE TRIGGER tr_JobHistory_Insert
+ON JobHistory
+INSTEAD OF INSERT
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @InsertedData TABLE (
+      NoteID INT,
+      PositionID INT,
+      EmployeeID INT,
+      DepartmentID INT,
+      DateOfStartOfWork DATE,
+      MarchingOrders DATE,
+      UCR VARCHAR(50),
+      DCR DATETIME,
+      ULC VARCHAR(50),
+      DLC DATETIME
+   );
+
+   DECLARE @UCR VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DCR DATETIME = GETDATE();
+   DECLARE @ULC VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DLC DATETIME = GETDATE();
+
+   INSERT INTO @InsertedData (NoteID, PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders, UCR, DCR, ULC, DLC)
+   SELECT NEXT VALUE FOR Seq_JobHistory, PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders, @UCR, @DCR, @ULC, @DLC
+   FROM inserted;
+
+   UPDATE j
+   SET j.NoteID = i.NoteID,
+       j.UCR = i.UCR,
+       j.DCR = i.DCR,
+       j.ULC = i.ULC,
+       j.DLC = i.DLC
+   FROM JobHistory j
+   INNER JOIN @InsertedData i ON j.PositionID = i.PositionID
+                              AND j.EmployeeID = i.EmployeeID
+                              AND j.DepartmentID = i.DepartmentID
+                              AND j.DateOfStartOfWork = i.DateOfStartOfWork
+                              AND j.MarchingOrders = i.MarchingOrders;
+
+   INSERT INTO JobHistory (NoteID, PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders, UCR, DCR, ULC, DLC)
+   SELECT NoteID, PositionID, EmployeeID, DepartmentID, DateOfStartOfWork, MarchingOrders, UCR, DCR, ULC, DLC
+   FROM @InsertedData;
+END
+GO
+
+
+
+--такі ж тригери для PassportData--
+CREATE TRIGGER tr_PassportData_Insert
+ON PassportData
+INSTEAD OF INSERT
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @InsertedData TABLE (
+      PassportDataID bigint,
+      EmployeeID bigint,
+      PassportNumber varchar(15),
+      Citizenship nvarchar(50),
+      RegistrationAddress nvarchar(100),
+      IDCode varchar(30),
+      UCR varchar(50),
+      DCR datetime,
+      ULC varchar(50),
+      DLC datetime
+   );
+
+   DECLARE @UCR varchar(50) = SUSER_SNAME();
+   DECLARE @DCR datetime = GETDATE();
+   DECLARE @ULC varchar(50) = SUSER_SNAME();
+   DECLARE @DLC datetime = GETDATE();
+
+   INSERT INTO @InsertedData (PassportDataID, EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode, UCR, DCR, ULC, DLC)
+   SELECT NEXT VALUE FOR Seq_PassportData, EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode, @UCR, @DCR, @ULC, @DLC
+   FROM inserted;
+
+   UPDATE p
+   SET p.PassportDataID = i.PassportDataID,
+       p.UCR = i.UCR,
+       p.DCR = i.DCR,
+       p.ULC = i.ULC,
+       p.DLC = i.DLC
+   FROM PassportData p
+   INNER JOIN @InsertedData i ON p.EmployeeID = i.EmployeeID
+                              AND p.PassportNumber = i.PassportNumber
+                              AND p.Citizenship = i.Citizenship
+                              AND p.RegistrationAddress = i.RegistrationAddress
+                              AND p.IDCode = i.IDCode;
+
+   INSERT INTO PassportData (PassportDataID, EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode, UCR, DCR, ULC, DLC)
+   SELECT PassportDataID, EmployeeID, PassportNumber, Citizenship, RegistrationAddress, IDCode, UCR, DCR, ULC, DLC
+   FROM @InsertedData;
+END
+GO
+
+CREATE TRIGGER tr_PassportData_Update
+ON PassportData
+AFTER UPDATE
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @CurrentDateTime DATETIME = GETDATE();
+   DECLARE @UserName NVARCHAR(50) = SUSER_SNAME();
+
+   UPDATE p
+   SET ULC = @UserName,
+       DLC = @CurrentDateTime
+   FROM PassportData AS p
+   INNER JOIN inserted AS i ON p.PassportDataID = i.PassportDataID;
+END;
+GO
+
+--такі ж тригери для Vacations--
+CREATE TRIGGER tr_Vacations_Insert
+ON Vacations
+INSTEAD OF INSERT
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @DepartmentID INT;
+   DECLARE @VacationCount INT;
+   DECLARE @TotalEmployees INT;
+   DECLARE @MaxVacationPercentage DECIMAL(5, 2);
+
+   DECLARE @InsertedData TABLE (
+      VacationID BIGINT,
+      EmployeeID BIGINT,
+      Start_Vacation DATE,
+      End_Vacation DATE,
+      Days BIGINT,
+      UCR VARCHAR(50),
+      DCR DATETIME,
+      ULC VARCHAR(50),
+      DLC DATETIME
+   );
+
+   DECLARE @UCR VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DCR DATETIME = GETDATE();
+   DECLARE @ULC VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DLC DATETIME = GETDATE();
+
+    
+   INSERT INTO @InsertedData (VacationID, EmployeeID, Start_Vacation, End_Vacation, Days, UCR, DCR, ULC, DLC)
+   SELECT NEXT VALUE FOR Seq_Vacations, EmployeeID, Start_Vacation, End_Vacation, Days, @UCR, @DCR, @ULC, @DLC
+   FROM inserted;
+
+   SELECT @DepartmentID = DepartmentID
+   FROM JobHistory
+   WHERE EmployeeID IN (SELECT EmployeeID FROM @InsertedData);
+
+   SELECT @TotalEmployees = COUNT(*)
+   FROM JobHistory
+   WHERE DepartmentID = @DepartmentID;
+
+   SELECT @VacationCount = COUNT(*)
+   FROM Employees e
+   INNER JOIN JobHistory j ON e.EmployeeID = j.EmployeeID
+   INNER JOIN Vacations v ON j.EmployeeID = v.EmployeeID
+   WHERE j.DepartmentID = @DepartmentID
+   AND v.Start_Vacation <= GETDATE()
+   AND v.End_Vacation >= GETDATE();
+
+   SET @MaxVacationPercentage = @TotalEmployees * 0.05;
+
+   IF @VacationCount > @MaxVacationPercentage
+   BEGIN
+      RAISERROR('Кількість працівників у відпустці перевищує максимальний відсоток.', 16, 1);
+       DELETE FROM Vacations
+       WHERE VacationID= (
+       SELECT MAX(VacationID)
+       FROM Vacations
+      );
+   END;
+
+
+   UPDATE v
+   SET v.VacationID = i.VacationID,
+       v.UCR = i.UCR,
+       v.DCR = i.DCR,
+       v.ULC = i.ULC,
+       v.DLC = i.DLC
+   FROM Vacations v
+   INNER JOIN @InsertedData i ON v.EmployeeID = i.EmployeeID
+                              AND v.Start_Vacation = i.Start_Vacation
+                              AND v.End_Vacation = i.End_Vacation
+                              AND v.Days = i.Days;
+                             
+
+
+   INSERT INTO Vacations (VacationID, EmployeeID, Start_Vacation, End_Vacation, Days, UCR, DCR, ULC, DLC)
+   SELECT VacationID, EmployeeID, Start_Vacation, End_Vacation, Days, UCR, DCR, ULC, DLC
+   FROM @InsertedData;
+
+END
+GO
+
+CREATE TRIGGER tr_Vacations_Update
+ON Vacations
+AFTER UPDATE
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @CurrentDateTime DATETIME = GETDATE();
+   DECLARE @UserName NVARCHAR(50) = SUSER_SNAME();
+    DECLARE @DepartmentID INT;
+   DECLARE @VacationCount INT;
+   DECLARE @TotalEmployees INT;
+   DECLARE @MaxVacationPercentage DECIMAL(5, 2);
+
+   SELECT @DepartmentID = DepartmentID
+   FROM JobHistory
+   WHERE EmployeeID IN (SELECT EmployeeID FROM inserted);
+
+   SELECT @TotalEmployees = COUNT(*)
+   FROM JobHistory
+   WHERE DepartmentID = @DepartmentID;
+
+   SELECT @VacationCount = COUNT(*)
+   FROM Employees e
+   INNER JOIN JobHistory j ON e.EmployeeID = j.EmployeeID
+   INNER JOIN Vacations v ON j.EmployeeID = v.EmployeeID
+   WHERE j.DepartmentID = @DepartmentID
+   AND v.Start_Vacation <= GETDATE()
+   AND v.End_Vacation >= GETDATE();
+
+   SET @MaxVacationPercentage = @TotalEmployees * 0.05;
+
+   IF @VacationCount > @MaxVacationPercentage
+   BEGIN
+      RAISERROR('Кількість працівників у відпустці перевищує максимальний відсоток.', 16, 1);
+       DELETE FROM Vacations
+       WHERE VacationID= (
+       SELECT MAX(VacationID)
+       FROM Vacations
+      );
+   END;
+
+
+   UPDATE v
+   SET ULC = @UserName,
+       DLC = @CurrentDateTime
+   FROM Vacations AS v
+   INNER JOIN inserted AS i ON v.VacationID = i.VacationID;
+END;
+GO
+
+--такі ж тригери для Departments--
+CREATE TRIGGER tr_Departments_Insert
+ON Departments
+INSTEAD OF INSERT
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @InsertedData TABLE (
+      DepartmentID BIGINT,
+      ManagerID BIGINT,
+      Name NVARCHAR(100),
+      Abbreviation NVARCHAR(50),
+      UCR VARCHAR(50),
+      DCR DATETIME,
+      ULC VARCHAR(50),
+      DLC DATETIME
+   );
+
+   DECLARE @UCR VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DCR DATETIME = GETDATE();
+   DECLARE @ULC VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DLC DATETIME = GETDATE();
+
+   INSERT INTO @InsertedData (DepartmentID, ManagerID, Name, Abbreviation, UCR, DCR, ULC, DLC)
+   SELECT NEXT VALUE FOR Seq_Departments, ManagerID, Name, Abbreviation, @UCR, @DCR, @ULC, @DLC
+   FROM inserted;
+
+   UPDATE d
+   SET d.DepartmentID = i.DepartmentID,
+       d.UCR = i.UCR,
+       d.DCR = i.DCR,
+       d.ULC = i.ULC,
+       d.DLC = i.DLC
+   FROM Departments d
+   INNER JOIN @InsertedData i ON d.ManagerID = i.ManagerID
+                              AND d.Name = i.Name
+                              AND d.Abbreviation = i.Abbreviation;
+
+
+   INSERT INTO Departments (DepartmentID, ManagerID, Name, Abbreviation, UCR, DCR, ULC, DLC)
+   SELECT DepartmentID, ManagerID, Name, Abbreviation, UCR, DCR, ULC, DLC
+   FROM @InsertedData;
+END
+GO
+
+CREATE TRIGGER tr_Departments_Update
+ON Departments
+AFTER UPDATE
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @CurrentDateTime DATETIME = GETDATE();
+   DECLARE @UserName NVARCHAR(50) = SUSER_SNAME();
+
+   UPDATE d
+   SET ULC = @UserName,
+       DLC = @CurrentDateTime
+   FROM Departments AS d
+   INNER JOIN inserted AS i ON d.DepartmentID = i.DepartmentID;
+END;
+GO
+
+--такі ж тригери для Employees--
+CREATE TRIGGER tr_Employees_Insert
+ON Employees
+INSTEAD OF INSERT
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @InsertedData TABLE (
+      EmployeeID BIGINT,
+      PositionID BIGINT,
+      Surname NVARCHAR(50),
+      Name NVARCHAR(50),
+      Patronymic NVARCHAR(50),
+      DateOfBirth VARCHAR(50),
+      PlaceOfBirth NVARCHAR(50),
+      HomeAddress NVARCHAR(50),
+      UCR VARCHAR(50),
+      DCR DATETIME,
+      ULC VARCHAR(50),
+      DLC DATETIME
+   );
+
+   DECLARE @UCR VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DCR DATETIME = GETDATE();
+   DECLARE @ULC VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DLC DATETIME = GETDATE();
+
+   INSERT INTO @InsertedData (EmployeeID, PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress, UCR, DCR, ULC, DLC)
+   SELECT NEXT VALUE FOR Seq_Employees, PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress, @UCR, @DCR, @ULC, @DLC
+   FROM inserted;
+
+   UPDATE e
+   SET e.EmployeeID = i.EmployeeID,
+       e.UCR = i.UCR,
+       e.DCR = i.DCR,
+       e.ULC = i.ULC,
+       e.DLC = i.DLC
+   FROM Employees e
+   INNER JOIN @InsertedData i ON e.PositionID = i.PositionID
+                              AND e.Surname = i.Surname
+                              AND e.Name = i.Name
+                              AND e.Patronymic = i.Patronymic
+                              AND e.DateOfBirth = i.DateOfBirth
+                              AND e.PlaceOfBirth = i.PlaceOfBirth
+                              AND e.HomeAddress = i.HomeAddress;
+
+   INSERT INTO Employees (EmployeeID, PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress, UCR, DCR, ULC, DLC)
+   SELECT EmployeeID, PositionID, Surname, Name, Patronymic, DateOfBirth, PlaceOfBirth, HomeAddress, UCR, DCR, ULC, DLC
+   FROM @InsertedData;
+END
+GO
+
+CREATE TRIGGER tr_Employees_Update
+ON Employees
+AFTER UPDATE
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @CurrentDateTime DATETIME = GETDATE();
+   DECLARE @UserName NVARCHAR(50) = SUSER_SNAME();
+
+   UPDATE e
+   SET ULC = @UserName,
+       DLC = @CurrentDateTime
+   FROM Employees AS e
+   INNER JOIN inserted AS i ON e.EmployeeID = i.EmployeeID;
+END;
+GO
+
+
+--такі ж тригери для Positions--
+CREATE TRIGGER tr_Positions_Insert
+ON Positions
+INSTEAD OF INSERT
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @InsertedData TABLE (
+      PositionID BIGINT,
+      NamePosition NVARCHAR(100),
+      Salary BIGINT,
+      UCR VARCHAR(50),
+      DCR DATETIME,
+      ULC VARCHAR(50),
+      DLC DATETIME
+   );
+
+   DECLARE @UCR VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DCR DATETIME = GETDATE();
+   DECLARE @ULC VARCHAR(50) = SUSER_SNAME();
+   DECLARE @DLC DATETIME = GETDATE();
+
+   INSERT INTO @InsertedData (PositionID, NamePosition, Salary, UCR, DCR, ULC, DLC)
+   SELECT NEXT VALUE FOR Seq_Positions, NamePosition, Salary, @UCR, @DCR, @ULC, @DLC
+   FROM inserted;
+
+   UPDATE p
+   SET p.PositionID = i.PositionID,
+       p.UCR = i.UCR,
+       p.DCR = i.DCR,
+       p.ULC = i.ULC,
+       p.DLC = i.DLC
+   FROM Positions p
+   INNER JOIN @InsertedData i ON p.NamePosition = i.NamePosition
+                                 AND p.Salary = i.Salary;
+
+   INSERT INTO Positions (PositionID, NamePosition, Salary, UCR, DCR, ULC, DLC)
+   SELECT PositionID, NamePosition, Salary, UCR, DCR, ULC, DLC
+   FROM @InsertedData;
+END
+GO
+
+CREATE TRIGGER tr_Positions_Update
+ON Positions
+AFTER UPDATE
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @CurrentDateTime DATETIME = GETDATE();
+   DECLARE @UserName NVARCHAR(50) = SUSER_SNAME();
+
+   UPDATE p
+   SET ULC = @UserName,
+       DLC = @CurrentDateTime
+   FROM Positions AS p
+   INNER JOIN inserted AS i ON p.PositionID = i.PositionID;
+END;
+GO
+
+--тригер для перевірки, що працівників буде не більше 20 у одному відділі + тригер, що не буде однофамільців до керівника відділу--
+CREATE TRIGGER tr_EmployeeCount
+ON JobHistory
+AFTER INSERT
+AS
+BEGIN
+    DECLARE @DepartmentID bigint;
+    DECLARE @EmployeeCount int;
+	DECLARE @manager_id BIGINT;
+
+
+    SELECT @DepartmentID = DepartmentID
+    FROM inserted
+
+	IF EXISTS (
+    SELECT 1
+    FROM JobHistory j 
+    INNER JOIN Employees e ON j.EmployeeID = e.EmployeeID
+    INNER JOIN Departments d ON j.DepartmentID = d.DepartmentID
+    WHERE d.ManagerID <> e.EmployeeID
+    AND EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE i.EmployeeID = e.EmployeeID
+		AND i.DepartmentID = d.DepartmentID
+    )
+    AND EXISTS (
+        SELECT 1
+        FROM Employees e2
+        WHERE e2.Surname = e.Surname
+        AND e2.EmployeeID <> e.EmployeeID
+    )
+)
+BEGIN
+    -- Видалення записів з таблиці JobHistory, що відповідають умові
+    DELETE j
+    FROM JobHistory j
+    INNER JOIN Employees e ON j.EmployeeID = e.EmployeeID
+    INNER JOIN Departments d ON j.DepartmentID = d.DepartmentID
+    WHERE d.ManagerID <> e.EmployeeID
+    AND EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE i.EmployeeID = e.EmployeeID
+		AND i.DepartmentID = d.DepartmentID
+    )
+    AND EXISTS (
+        SELECT 1
+        FROM Employees e2
+        WHERE e2.Surname = e.Surname
+        AND e2.EmployeeID <> e.EmployeeID
+    );
+
+    -- Повідомлення про помилку
+    RAISERROR('Однофамільці не можуть працювати в одному відділі!', 16, 1);
+END
+
+    SELECT @EmployeeCount = COUNT(*)
+    FROM JobHistory
+    WHERE DepartmentID = @DepartmentID;
+
+    IF @EmployeeCount <=20
+    BEGIN
+        PRINT 'Кількість працівників <= 20.';
+    END
+    ELSE
+    BEGIN
+        RAISERROR('Кількість працівників перевищує 20 у відділі.', 16, 1);
+         DELETE FROM JobHistory WHERE EmployeeID = (SELECT EmployeeID FROM inserted);
+    END
+
+END
+GO
+
+--тригер для оновлення данних--
+CREATE TRIGGER tr_JobHistory_Update
+ON JobHistory
+AFTER UPDATE
+AS
+BEGIN
+   SET NOCOUNT ON;
+
+   DECLARE @CurrentDateTime DATETIME = GETDATE();
+   DECLARE @UserName NVARCHAR(50) = SUSER_SNAME();
+
+   	IF EXISTS (
+    SELECT 1
+    FROM JobHistory j 
+    INNER JOIN Employees e ON j.EmployeeID = e.EmployeeID
+    INNER JOIN Departments d ON j.DepartmentID = d.DepartmentID
+    WHERE d.ManagerID <> e.EmployeeID
+    AND EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE i.EmployeeID = e.EmployeeID
+		AND i.DepartmentID = d.DepartmentID
+    )
+    AND EXISTS (
+        SELECT 1
+        FROM Employees e2
+        WHERE e2.Surname = e.Surname
+        AND e2.EmployeeID <> e.EmployeeID
+    )
+)
+BEGIN
+    -- Видалення записів з таблиці JobHistory, що відповідають умові
+    DELETE j
+    FROM JobHistory j
+    INNER JOIN Employees e ON j.EmployeeID = e.EmployeeID
+    INNER JOIN Departments d ON j.DepartmentID = d.DepartmentID
+    WHERE d.ManagerID <> e.EmployeeID
+    AND EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE i.EmployeeID = e.EmployeeID
+		AND i.DepartmentID = d.DepartmentID
+    )
+    AND EXISTS (
+        SELECT 1
+        FROM Employees e2
+        WHERE e2.Surname = e.Surname
+        AND e2.EmployeeID <> e.EmployeeID
+    );
+
+    -- Повідомлення про помилку
+    RAISERROR('Однофамільці не можуть працювати в одному відділі!', 16, 1);
+END
+
+   UPDATE j
+   SET ULC = @UserName,
+       DLC = @CurrentDateTime
+   FROM JobHistory AS j
+   INNER JOIN inserted AS i ON j.NoteID = i.NoteID;
+
+END;
+GO
